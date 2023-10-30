@@ -1,22 +1,24 @@
 package io.github.semanticpie.orchestrator.orchestrator;
 
-import io.github.semanticpie.orchestrator.orchestrator.exceptions.AgentException;
+import io.github.semanticpie.orchestrator.config.ReopenTask;
 import lombok.extern.slf4j.Slf4j;
 import org.ostis.api.context.DefaultScContext;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
 
 @Slf4j
 public class Orchestrator implements Mediator {
 
     private final List<Agent> agents;
     private DefaultScContext context;
+    private final Timer timer;
 
     public Orchestrator(DefaultScContext context) {
         this.context = context;
         this.agents = new ArrayList<>();
+        this.timer = new Timer();
     }
 
     @Override
@@ -36,17 +38,6 @@ public class Orchestrator implements Mediator {
 
     @SuppressWarnings("java:S2189")
     private void bootstrap() {
-           while (true) {
-               try {
-                   Thread.sleep(Duration.ofSeconds(1).toMillis());
-                   context.memory().open();
-                   agents.forEach(Agent::subscribe);
-                   do {
-                       Thread.sleep(Duration.ofSeconds(1).toMillis());
-                   } while (context.memory().isOpen());
-               } catch (AgentException e) {
-                   log.warn("failed subscribe agent: {}", e.getMessage());
-               }  catch (Exception ignored) {}
-           }
+        this.timer.scheduleAtFixedRate(new ReopenTask(context, agents), 1000, 1000);
     }
 }
