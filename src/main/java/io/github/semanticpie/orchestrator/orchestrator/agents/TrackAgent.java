@@ -36,7 +36,7 @@ public class TrackAgent extends Agent {
     private final RestTemplate restTemplate;
     private final TrackService trackService;
 
-    @Value("${loaf-loader-url}")
+    @Value("${application.loaf-loader-url}")
     private String loafLoaderUrl;
 
     @Autowired
