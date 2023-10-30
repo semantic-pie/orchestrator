@@ -21,7 +21,6 @@ public class ReopenTask extends TimerTask {
     @Override
     public void run() {
         try {
-            log.info("reconnect task");
             boolean isOpen = false;
 
             try {
@@ -33,8 +32,6 @@ public class ReopenTask extends TimerTask {
                 agents.forEach(Agent::subscribe);
             }
 
-        } catch (Exception e) {
-            log.warn("Try reconnect: {}", e.getMessage());
-        }
+        } catch (Exception ignored) {}
     }
 }
