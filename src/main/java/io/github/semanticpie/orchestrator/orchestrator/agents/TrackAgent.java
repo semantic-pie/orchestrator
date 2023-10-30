@@ -10,6 +10,7 @@ import io.github.semanticpie.orchestrator.orchestrator.exceptions.AgentException
 import io.github.semanticpie.orchestrator.services.impl.TrackServiceException;
 import io.github.semanticpie.orchestrator.services.TrackService;
 import lombok.extern.slf4j.Slf4j;
+import org.ostis.api.context.DefaultScContext;
 import org.ostis.scmemory.model.element.ScElement;
 import org.ostis.scmemory.model.element.edge.EdgeType;
 import org.ostis.scmemory.model.element.edge.ScEdge;
@@ -19,48 +20,40 @@ import org.ostis.scmemory.model.element.node.NodeType;
 import org.ostis.scmemory.model.event.OnAddIngoingEdgeEvent;
 import org.ostis.scmemory.model.exception.ScMemoryException;
 import org.ostis.scmemory.model.pattern.pattern5.ScPattern5Impl;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
+import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.*;
 
 @Slf4j
+@Component
 public class TrackAgent extends Agent {
 
     private final RestTemplate restTemplate;
     private final TrackService trackService;
 
-    public TrackAgent(RestTemplate restTemplate, TrackService trackService) {
+    @Value("${loaf-loader-url}")
+    private String loafLoaderUrl;
+
+    @Autowired
+    public TrackAgent(DefaultScContext context, RestTemplate restTemplate, TrackService trackService) {
+        this.context = context;
         this.restTemplate = restTemplate;
         this.trackService = trackService;
     }
 
     @Override
     public void subscribe() {
-        try {
-            log.info("AGENT {} SUBSCRIBED", TrackAgent.class);
-            context.findKeynode("format_audio_mpeg").ifPresent(subscriber -> {
-                var event = new OnAddIngoingEdgeEvent(){
-
-                    @Override
-                    public void onEvent(ScElement source, ScEdge edge, ScElement target) {
-                        log.info("Event accepted [{}]", TrackAgent.class);
-                        log.info("ScElement [{}] ScEdge [{}] ScElement [{}]", source.getAddress(), edge.getAddress(), target.getAddress());
-                        onEventDo(source, edge, target);
-                    }
-                };
-
-                try {
-                    context.subscribeOnEvent(subscriber, event);
-                } catch (ScMemoryException e) {
-                    throw new AgentException("Error while subscribing [" +  Agent.class + "] ", e);
-                }
-            });
-
-        } catch (AgentException | ScMemoryException  e) {
-            throw new AgentException(e);
-        }
+        this.subscribe("format_audio_mpeg", new OnAddIngoingEdgeEvent(){
+            @Override
+            public void onEvent(ScElement source, ScEdge edge, ScElement target) {
+                onEventDo(source, edge, target);
+            }
+        });
     }
 
     private void onEventDo(ScElement source, ScEdge edge, ScElement target) {
@@ -84,7 +77,7 @@ public class TrackAgent extends Agent {
     public TrackData getTrackMetadataByHash(String hash) {
         try {
             File resource = File.createTempFile(hash, "tmp");
-            restTemplate.execute("http://localhost:8080/api/v1/loafloader/" + hash, HttpMethod.GET, null, clientHttpResponse -> {
+            restTemplate.execute(loafLoaderUrl + hash, HttpMethod.GET, null, clientHttpResponse -> {
                 StreamUtils.copy(clientHttpResponse.getBody(), new FileOutputStream(resource));
                 return resource;
             });

@@ -43,7 +43,6 @@ public class CacheServiceImpl implements CacheService {
     private void initCache() throws FileNotFoundException, ScMemoryException {
         Yaml yaml = new Yaml();
         LinkedHashMap<String, List<String>> config = yaml.load(new FileReader(ResourceUtils.getFile("classpath:" + configPath)));
-        log.info("kek: {}", config);
         List<Optional<? extends ScNode>> nodes = context.memory().findKeynodes(config.get("include").stream()).toList();
 
         IntStream.range(0, config.get("include").size())
@@ -59,7 +58,6 @@ public class CacheServiceImpl implements CacheService {
     public ScNode get(String idtf) {
         try {
             ScNode node = context.findKeynode(idtf).orElse(null);
-            System.out.println(node);
             if (node != null) {
                 return node;
             } else {
