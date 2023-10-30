@@ -10,6 +10,7 @@ import io.github.semanticpie.orchestrator.orchestrator.exceptions.AgentException
 import io.github.semanticpie.orchestrator.services.impl.TrackServiceException;
 import io.github.semanticpie.orchestrator.services.TrackService;
 import lombok.extern.slf4j.Slf4j;
+import org.ostis.api.context.DefaultScContext;
 import org.ostis.scmemory.model.element.ScElement;
 import org.ostis.scmemory.model.element.edge.EdgeType;
 import org.ostis.scmemory.model.element.edge.ScEdge;
@@ -19,19 +20,24 @@ import org.ostis.scmemory.model.element.node.NodeType;
 import org.ostis.scmemory.model.event.OnAddIngoingEdgeEvent;
 import org.ostis.scmemory.model.exception.ScMemoryException;
 import org.ostis.scmemory.model.pattern.pattern5.ScPattern5Impl;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
+import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.*;
 
 @Slf4j
+@Component
 public class TrackAgent extends Agent {
 
     private final RestTemplate restTemplate;
     private final TrackService trackService;
 
-    public TrackAgent(RestTemplate restTemplate, TrackService trackService) {
+    @Autowired
+    public TrackAgent(DefaultScContext context, RestTemplate restTemplate, TrackService trackService) {
+        this.context = context;
         this.restTemplate = restTemplate;
         this.trackService = trackService;
     }
