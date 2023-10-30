@@ -44,29 +44,12 @@ public class TrackAgent extends Agent {
 
     @Override
     public void subscribe() {
-        try {
-            log.info("AGENT {} SUBSCRIBED", TrackAgent.class);
-            context.findKeynode("format_audio_mpeg").ifPresent(subscriber -> {
-                var event = new OnAddIngoingEdgeEvent(){
-
-                    @Override
-                    public void onEvent(ScElement source, ScEdge edge, ScElement target) {
-                        log.info("Event accepted [{}]", TrackAgent.class);
-                        log.info("ScElement [{}] ScEdge [{}] ScElement [{}]", source.getAddress(), edge.getAddress(), target.getAddress());
-                        onEventDo(source, edge, target);
-                    }
-                };
-
-                try {
-                    context.subscribeOnEvent(subscriber, event);
-                } catch (ScMemoryException e) {
-                    throw new AgentException("Error while subscribing [" +  Agent.class + "] ", e);
-                }
-            });
-
-        } catch (AgentException | ScMemoryException  e) {
-            throw new AgentException(e);
-        }
+        this.subscribe("format_audio_mpeg", new OnAddIngoingEdgeEvent(){
+            @Override
+            public void onEvent(ScElement source, ScEdge edge, ScElement target) {
+                onEventDo(source, edge, target);
+            }
+        });
     }
 
     private void onEventDo(ScElement source, ScEdge edge, ScElement target) {
