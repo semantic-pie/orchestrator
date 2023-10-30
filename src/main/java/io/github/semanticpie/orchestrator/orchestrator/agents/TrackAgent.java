@@ -21,6 +21,7 @@ import org.ostis.scmemory.model.event.OnAddIngoingEdgeEvent;
 import org.ostis.scmemory.model.exception.ScMemoryException;
 import org.ostis.scmemory.model.pattern.pattern5.ScPattern5Impl;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
@@ -34,6 +35,9 @@ public class TrackAgent extends Agent {
 
     private final RestTemplate restTemplate;
     private final TrackService trackService;
+
+    @Value("${loaf-loader-url}")
+    private String loafLoaderUrl;
 
     @Autowired
     public TrackAgent(DefaultScContext context, RestTemplate restTemplate, TrackService trackService) {
@@ -73,7 +77,7 @@ public class TrackAgent extends Agent {
     public TrackData getTrackMetadataByHash(String hash) {
         try {
             File resource = File.createTempFile(hash, "tmp");
-            restTemplate.execute("http://localhost:8080/api/v1/loafloader/" + hash, HttpMethod.GET, null, clientHttpResponse -> {
+            restTemplate.execute(loafLoaderUrl + hash, HttpMethod.GET, null, clientHttpResponse -> {
                 StreamUtils.copy(clientHttpResponse.getBody(), new FileOutputStream(resource));
                 return resource;
             });
