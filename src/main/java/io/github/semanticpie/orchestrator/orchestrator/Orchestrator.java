@@ -47,5 +47,8 @@ public class Orchestrator {
     @PreDestroy
     private void destroy() {
         agents.forEach(Agent::unsubscribe);
+        try {
+            context.memory().close();
+        } catch (Exception ignored) {}
     }
 }
