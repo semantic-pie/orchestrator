@@ -1,6 +1,7 @@
 package io.github.semanticpie.orchestrator.orchestrator;
 
 import io.github.semanticpie.orchestrator.config.ReopenTask;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.ostis.api.context.DefaultScContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,5 +42,10 @@ public class Orchestrator {
     public void listen() {
         agents.forEach(Agent::subscribe);
         this.timer.scheduleAtFixedRate(new ReopenTask(context, agents), pingTime, pingTime);
+    }
+
+    @PreDestroy
+    private void destroy() {
+        agents.forEach(Agent::unsubscribe);
     }
 }

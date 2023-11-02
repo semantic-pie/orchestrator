@@ -14,6 +14,7 @@ import org.ostis.scmemory.model.exception.ScMemoryException;
 public abstract class Agent {
 
     protected DefaultScContext context;
+    private Long eventId;
 
     public void subscribe() {}
 
@@ -30,5 +31,11 @@ public abstract class Agent {
         } catch (AgentException | ScMemoryException  e) {
             throw new AgentException(e);
         }
+    }
+
+    public void unsubscribe() {
+        try {
+            context.unSubscribeOnEvent(eventId);
+        } catch (ScMemoryException ignored) {}
     }
 }

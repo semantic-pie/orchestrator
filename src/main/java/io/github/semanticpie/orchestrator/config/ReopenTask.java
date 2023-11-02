@@ -29,6 +29,7 @@ public class ReopenTask extends TimerTask {
 
             if (!isOpen) {
                 context.memory().open();
+                agents.forEach(Agent::unsubscribe);
                 agents.forEach(Agent::subscribe);
             }
 
