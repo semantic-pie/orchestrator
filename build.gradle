@@ -24,9 +24,8 @@ repositories {
 
 dependencies {
 
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework:spring-web'
     implementation 'io.github.semantic-pie:jmantic:0.8.0'
 
     implementation 'com.mpatric:mp3agic:0.9.1'
