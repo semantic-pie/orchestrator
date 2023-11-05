@@ -1,8 +1,8 @@
-package io.github.semanticpie.orchestrator.services.impl;
+package io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent.services.impl;
 
-import io.github.semanticpie.orchestrator.models.TrackData;
+import io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent.models.TrackData;
+import io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent.services.TrackService;
 import io.github.semanticpie.orchestrator.services.CacheService;
-import io.github.semanticpie.orchestrator.services.TrackService;
 import lombok.extern.slf4j.Slf4j;
 import org.ostis.api.context.DefaultScContext;
 import org.ostis.scmemory.model.element.ScElement;
@@ -68,6 +68,16 @@ public class TrackServiceImpl implements TrackService {
             context.resolveEdge(nrelArtist, EdgeType.ACCESS_VAR_POS_PERM, edge);
 
             List<ScNode> genreNodes = resolveGenres(Arrays.stream(trackData.getGenre().split("/")).toList());
+            ScNode genreGeneralNode = context.resolveKeynode("concept_music_genre", NodeType.CONST_CLASS);
+
+            genreNodes.forEach(genre -> {
+                try {
+                    context.resolveEdge(genreGeneralNode, EdgeType.ACCESS_VAR_POS_PERM,genre);
+                } catch (ScMemoryException e) {
+                    log.error(e.getLocalizedMessage());
+                }
+            });
+
             List<ScElement> edges = context.createEdges(
                     Stream.generate(() -> EdgeType.D_COMMON_CONST).limit(genreNodes.size()),
                     genreNodes.stream(),

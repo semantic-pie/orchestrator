@@ -1,4 +1,4 @@
-package io.github.semanticpie.orchestrator.services.impl;
+package io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent.services.impl;
 
 public class TrackServiceException extends RuntimeException {
     public TrackServiceException() {
