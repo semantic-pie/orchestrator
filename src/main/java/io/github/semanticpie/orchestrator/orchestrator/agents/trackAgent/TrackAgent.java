@@ -1,11 +1,12 @@
-package io.github.semanticpie.orchestrator.orchestrator.agents;
+package io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent;
 
 import com.mpatric.mp3agic.*;
-import io.github.semanticpie.orchestrator.models.TrackData;
+import io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent.models.TrackData;
 import io.github.semanticpie.orchestrator.orchestrator.Agent;
 import io.github.semanticpie.orchestrator.orchestrator.exceptions.AgentException;
-import io.github.semanticpie.orchestrator.services.impl.TrackServiceException;
-import io.github.semanticpie.orchestrator.services.TrackService;
+import io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent.services.impl.TrackServiceException;
+import io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent.services.TrackService;
+import io.github.semanticpie.orchestrator.services.JmanticService;
 import lombok.extern.slf4j.Slf4j;
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
@@ -16,7 +17,6 @@ import org.jaudiotagger.audio.exceptions.ReadOnlyFileException;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
 import org.jaudiotagger.tag.TagException;
-import org.ostis.api.context.DefaultScContext;
 import org.ostis.scmemory.model.element.ScElement;
 import org.ostis.scmemory.model.element.edge.EdgeType;
 import org.ostis.scmemory.model.element.edge.ScEdge;
@@ -48,26 +48,17 @@ public class TrackAgent extends Agent {
     private String loafLoaderUrl;
 
     @Autowired
-    public TrackAgent(DefaultScContext context, RestTemplate restTemplate, TrackService trackService) {
-        this.context = context;
+    public TrackAgent(JmanticService jmanticService, RestTemplate restTemplate, TrackService trackService) {
+        this.jmanticService = jmanticService;
+        this.context = jmanticService.getContext();
         this.restTemplate = restTemplate;
         this.trackService = trackService;
     }
 
     @Override
     public void subscribe() {
-        this.subscribe("format_audio_mpeg", new OnAddIngoingEdgeEvent(){
-            @Override
-            public void onEvent(ScElement source, ScEdge edge, ScElement target) {
-                onEventDo(source, edge, target);
-            }
-        });
-        this.subscribe("format_audio_flac", new OnAddIngoingEdgeEvent(){
-            @Override
-            public void onEvent(ScElement source, ScEdge edge, ScElement target) {
-                onEventDo(source, edge, target);
-            }
-        });
+        this.subscribe("format_audio_mpeg", (OnAddIngoingEdgeEvent) this::onEventDo);
+        this.subscribe("format_audio_flac", (OnAddIngoingEdgeEvent) this::onEventDo);
     }
 
 
@@ -75,13 +66,8 @@ public class TrackAgent extends Agent {
     private void onEventDo(ScElement source, ScEdge edge, ScElement target) {
         try {
             log.info("EVENT EVENT EVENT");
-            var mainIdtf = context.resolveKeynode("nrel_system_identifier", NodeType.CONST);
 
-            var trackPattern = context.find(new ScPattern5Impl<>(
-                    target, EdgeType.D_COMMON_VAR, LinkType.LINK_VAR, EdgeType.ACCESS_VAR_POS_PERM, mainIdtf
-                    )).findFirst().orElseThrow(ScMemoryException::new);
-
-            String hash = context.getStringLinkContent((ScLinkString) trackPattern.get3());
+            String hash = jmanticService.getSysIdtf(target);
 
             TrackData trackData = getTrackMetadataByHash(hash);
             trackService.uploadTrackToScMachine(trackData);
@@ -99,13 +85,12 @@ public class TrackAgent extends Agent {
                 return getTrackData(resource, hash);
             } catch (IOException | InvalidDataException | RuntimeException e) {
                 resource = changeExtension(resource, ".flac");
-                var data = getVerboseCommentsTrackData(resource, hash);
-                return data;
+                return getVerboseCommentsTrackData(resource, hash);
             } catch (UnsupportedTagException e) {
                 throw new TrackServiceException("Can't get track metadata by UUID [" + hash + "]");
             }
         } catch (IOException | RuntimeException e) {
-            log.info("err: {}", e);
+            log.error(e.getLocalizedMessage());
             throw new RuntimeException(e);
         }
 

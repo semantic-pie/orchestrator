@@ -1,4 +1,4 @@
-package io.github.semanticpie.orchestrator.models;
+package io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent.models;
 
 import lombok.Builder;
 import lombok.Data;

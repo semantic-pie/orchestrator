@@ -1,12 +1,9 @@
 package io.github.semanticpie.orchestrator.orchestrator;
 
-import io.github.semanticpie.orchestrator.orchestrator.agents.TrackAgent;
 import io.github.semanticpie.orchestrator.orchestrator.exceptions.AgentException;
+import io.github.semanticpie.orchestrator.services.JmanticService;
 import lombok.extern.slf4j.Slf4j;
 import org.ostis.api.context.DefaultScContext;
-import org.ostis.scmemory.model.element.ScElement;
-import org.ostis.scmemory.model.element.edge.ScEdge;
-import org.ostis.scmemory.model.event.OnAddIngoingEdgeEvent;
 import org.ostis.scmemory.model.event.OnEdgeEvent;
 import org.ostis.scmemory.model.exception.ScMemoryException;
 
@@ -14,6 +11,8 @@ import org.ostis.scmemory.model.exception.ScMemoryException;
 public abstract class Agent {
 
     protected DefaultScContext context;
+
+    protected JmanticService jmanticService;
     private Long eventId;
 
     public void subscribe() {}
