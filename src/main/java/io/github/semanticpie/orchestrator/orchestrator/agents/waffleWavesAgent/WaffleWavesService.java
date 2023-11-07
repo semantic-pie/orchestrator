@@ -1,24 +1,22 @@
 package io.github.semanticpie.orchestrator.orchestrator.agents.waffleWavesAgent;
 
 import io.github.semanticpie.orchestrator.services.JmanticService;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.ostis.api.context.DefaultScContext;
 import org.ostis.scmemory.model.element.ScElement;
 import org.ostis.scmemory.model.element.edge.EdgeType;
 import org.ostis.scmemory.model.element.link.LinkType;
-import org.ostis.scmemory.model.element.link.ScLinkFloat;
 import org.ostis.scmemory.model.element.link.ScLinkString;
 import org.ostis.scmemory.model.element.node.NodeType;
 import org.ostis.scmemory.model.element.node.ScNode;
 import org.ostis.scmemory.model.exception.ScMemoryException;
 import org.ostis.scmemory.model.pattern.ScPattern;
-import org.ostis.scmemory.model.pattern.pattern3.ScPattern3;
-import org.ostis.scmemory.model.pattern.pattern3.ScPattern3Impl;
 import org.ostis.scmemory.websocketmemory.memory.element.ScEdgeImpl;
-import org.ostis.scmemory.websocketmemory.memory.element.ScLinkFloatImpl;
 import org.ostis.scmemory.websocketmemory.memory.element.ScLinkStringImpl;
 import org.ostis.scmemory.websocketmemory.memory.element.ScNodeImpl;
 import org.ostis.scmemory.websocketmemory.memory.pattern.DefaultWebsocketScPattern;
+import org.ostis.scmemory.websocketmemory.memory.pattern.GeneratingPatternTriple;
 import org.ostis.scmemory.websocketmemory.memory.pattern.SearchingPatternTriple;
 import org.ostis.scmemory.websocketmemory.memory.pattern.element.AliasPatternElement;
 import org.ostis.scmemory.websocketmemory.memory.pattern.element.FixedPatternElement;
@@ -26,9 +24,7 @@ import org.ostis.scmemory.websocketmemory.memory.pattern.element.TypePatternElem
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -36,7 +32,10 @@ import java.util.stream.Stream;
 public class WaffleWavesService {
     private final JmanticService service;
 
+    private int listEdgeIndex = 0;
+    private int structEdgeIndex = 0;
     private final DefaultScContext context;
+    @Getter
     private final Map<ScElement, Integer> userGenresMap;
 
     @Autowired
@@ -67,15 +66,131 @@ public class WaffleWavesService {
 
             userGenresMap.put(scElements.get(0), value);
         }
+    }
 
-        log.info(userGenresMap.toString());
+    public List<ScElement> createPlaylist(int size) {
+        Random random = new Random();
+        int sum = userGenresMap.values().stream().mapToInt(Integer::intValue).sum();
+
+        log.info("sum: {}", sum);
+
+        userGenresMap.replaceAll((key, value) -> Math.round(((float) value / sum) * size));
+        userGenresMap.forEach((key, value) -> log.info("limit: {}", value));
+        List<ScElement> playlist = new ArrayList<>(Collections.nCopies(size, null));
+        userGenresMap.forEach((key, value) -> {
+            try {
+                getTracksByGenre(key, value).forEach((track) -> {
+                    while (true) {
+                        int index = random.nextInt(size);
+                        if (playlist.get(index) == null) {
+                            playlist.set(index, track);
+                            break;
+                        }
+                    }
+                });
+
+            } catch (ScMemoryException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        playlist.removeAll(Collections.singleton(null));
+        log.info("Playlist size: {}", playlist.size());
+        log.info("Playlist: {}", playlist);
+
+        return playlist;
+    }
+
+    public void uploadPlaylist(List<ScElement> playlist, ScElement userNode) throws ScMemoryException {
+        List<? extends ScElement> list = new ArrayList<>(uploadList(playlist).toList());
+        list.removeAll(Collections.singleton(null));
+        context.memory().generate(linkToStructurePattern(userNode, list));
+    }
+
+    private Stream<? extends ScElement> uploadList(List<ScElement> list) throws ScMemoryException {
+        return context.memory().generate(listPattern(list));
+    }
+
+    private ScPattern linkToStructurePattern(ScElement structure, List<? extends ScElement> elements) {
+        ScPattern pattern = new DefaultWebsocketScPattern();
+
+        for (var element : elements) {
+            pattern.addElement(new GeneratingPatternTriple(new FixedPatternElement(structure),
+                    new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_" + structEdgeIndex)),
+                    new FixedPatternElement(element)));
+            structEdgeIndex++;
+        }
+        return pattern;
+    }
+
+    private ScPattern listPattern(List<ScElement> list) throws ScMemoryException {
+        ScElement next = context.resolveKeynode("nrel_next", NodeType.CONST_NO_ROLE);
+        ScElement start = context.resolveKeynode("rrel_start", NodeType.CONST_ROLE);
+        ScElement end = context.resolveKeynode("rrel_end", NodeType.CONST_ROLE);
+
+        ScPattern pattern = new DefaultWebsocketScPattern();
+
+        for (int i = 0; i < list.size() - 1; i++) {
+            addListSection(pattern, list.get(i), list.get(i + 1), next);
+        }
+
+        pattern.addElement(new SearchingPatternTriple(
+                new FixedPatternElement(start),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_" + listEdgeIndex)),
+                new FixedPatternElement(list.get(0))));
+        listEdgeIndex++;
+        pattern.addElement(new SearchingPatternTriple(
+                new FixedPatternElement(end),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM,
+                        new AliasPatternElement("edge_" + listEdgeIndex)),
+                new FixedPatternElement(list.get(list.size() - 1))));
+        listEdgeIndex++;
+        return pattern;
+    }
+
+    private void addListSection(ScPattern pattern, ScElement source, ScElement target, ScElement relation) {
+        int edge1 = listEdgeIndex;
+        pattern.addElement(
+                new GeneratingPatternTriple(
+                        new FixedPatternElement(source),
+                        new TypePatternElement<>(EdgeType.D_COMMON_VAR, new AliasPatternElement("edge_" + listEdgeIndex)),
+                        new FixedPatternElement(target)));
+        listEdgeIndex++;
+        pattern.addElement(
+                new GeneratingPatternTriple(
+                        new FixedPatternElement(relation),
+                        new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_" + listEdgeIndex)),
+                        new AliasPatternElement("edge_" + edge1)));
+        listEdgeIndex++;
+    }
+
+    private List<ScElement> getTracksByGenre(ScElement genreNode, int limit) throws ScMemoryException {
+        ScNode conceptTrack = context.resolveKeynode("concept_track", NodeType.CONST_CLASS);
+        List<ScElement> output = new ArrayList<>();
+        var trackList = context.find(trackPattern(genreNode, conceptTrack)).limit(limit).toList();
+
+        for (var track : trackList) {
+            output.add(track.filter(Objects::nonNull).filter(scElement -> !scElement.equals(genreNode) && !scElement.equals(conceptTrack))
+                    .filter(scElement -> scElement.getClass() != ScEdgeImpl.class).findFirst().orElseThrow());
+        }
+        return output;
     }
 
 
-    private List<ScElement> getMusicByGenre(ScElement genre) throws ScMemoryException {
-       var trackList =  context.find(new ScPattern3Impl<>(genre, EdgeType.ACCESS_VAR_POS_PERM, NodeType.VAR)).toList();
-       log.warn(String.valueOf(trackList.size()));
-       return null;
+    private ScPattern trackPattern(ScElement genreNode, ScElement conceptTrack) {
+        ScPattern pattern = new DefaultWebsocketScPattern();
+
+        pattern.addElement(new SearchingPatternTriple(
+                new FixedPatternElement(genreNode),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_1")),
+                new TypePatternElement<>(NodeType.VAR, new AliasPatternElement("track"))
+        ));
+
+        pattern.addElement(new SearchingPatternTriple(
+                new FixedPatternElement(conceptTrack),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_2")),
+                new AliasPatternElement("track")
+        ));
+        return pattern;
     }
 
     private ScPattern userGenresPattern(ScElement userNode, ScElement userGenresTuple, ScElement nrelWeight) {

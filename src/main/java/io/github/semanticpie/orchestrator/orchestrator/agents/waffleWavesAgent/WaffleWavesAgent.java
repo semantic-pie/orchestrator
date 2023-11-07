@@ -22,11 +22,16 @@ import org.ostis.scmemory.websocketmemory.memory.pattern.element.TypePatternElem
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.Map;
+
 @Slf4j
 @Component
 public class WaffleWavesAgent extends Agent {
 
     private final WaffleWavesService waffleWavesService;
+
+    private static final int PLAYLIST_SIZE  = 10;
     @Autowired
     public WaffleWavesAgent(JmanticService jmanticService, WaffleWavesService waffleWavesService) {
         this.waffleWavesService = waffleWavesService;
@@ -49,7 +54,9 @@ public class WaffleWavesAgent extends Agent {
             log.info("WaffleWavesEvent");
             context.deleteElement(edge);
             waffleWavesService.loadGenreWeights(target);
+           List<ScElement> playlist =  waffleWavesService.createPlaylist(PLAYLIST_SIZE);
 
+           waffleWavesService.uploadPlaylist(playlist, target);
         } catch (ScMemoryException e) {
             throw new AgentException(e);
         }
