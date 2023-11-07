@@ -34,6 +34,9 @@ public class WaffleWavesService {
 
     private int listEdgeIndex = 0;
     private int structEdgeIndex = 0;
+    public   ScElement next;
+    public ScElement start;
+    public ScElement end;
     private final DefaultScContext context;
     @Getter
     private final Map<ScElement, Integer> userGenresMap;
@@ -43,6 +46,13 @@ public class WaffleWavesService {
         this.service = service;
         this.context = service.getContext();
         this.userGenresMap = new HashMap<>();
+        try {
+            this.next =  context.resolveKeynode("nrel_next", NodeType.CONST_NO_ROLE);
+            this.start =  context.resolveKeynode("concept_start", NodeType.CONST_CLASS);
+            this.end = context.resolveKeynode("concept_end", NodeType.CONST_CLASS);
+        } catch (ScMemoryException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public void loadGenreWeights(ScElement userNode) throws ScMemoryException {
@@ -66,6 +76,32 @@ public class WaffleWavesService {
 
             userGenresMap.put(scElements.get(0), value);
         }
+    }
+
+    public List<? extends ScElement> getOldPlaylist(String name, ScElement userNode) throws ScMemoryException {
+        ScElement playlistNode = context.findKeynode(name).orElseThrow();
+        return context.find(findPlaylistPattern(userNode,playlistNode)).findFirst().orElseThrow().filter(Objects::nonNull).toList();
+    }
+
+    private ScPattern findPlaylistPattern(ScElement userNode, ScElement playlistNode){
+        ScPattern pattern = new DefaultWebsocketScPattern();
+        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(userNode),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("_edge1")),
+                new FixedPatternElement(playlistNode)));
+
+        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(playlistNode),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("_edge2")),
+                new TypePatternElement<>(NodeType.VAR, new AliasPatternElement("_track"))));
+
+        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(userNode),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("_edge3")),
+                new AliasPatternElement("_track")));
+
+        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(userNode),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("_edge4")),
+                new AliasPatternElement("_edge2")));
+
+        return pattern;
     }
 
     public List<ScElement> createPlaylist(int size) {
@@ -100,14 +136,22 @@ public class WaffleWavesService {
         return playlist;
     }
 
-    public void uploadPlaylist(List<ScElement> playlist, ScElement userNode) throws ScMemoryException {
-        List<? extends ScElement> list = new ArrayList<>(uploadList(playlist).toList());
-        list.removeAll(Collections.singleton(null));
+    public void uploadPlaylist(String name, List<ScElement> playlist, ScElement userNode) throws ScMemoryException {
+        ScElement playlistTuple = context.resolveKeynode(name, NodeType.CONST_TUPLE);
+        var tuple = context.memory().generate(linkToStructurePattern(playlistTuple, playlist)).filter(scElement -> !scElement.equals(playlistTuple))
+                .filter(scElement -> playlist.stream().noneMatch(track -> track.equals(scElement))).toList();
+
+        List<ScElement> list = new ArrayList<>(uploadList(playlist).filter(scElement -> playlist.stream().noneMatch(track -> track.equals(scElement))).toList());
+        list.addAll(playlist);
+        list.addAll(tuple);
+        list.add(playlistTuple);
+        log.info("Playlist size: {}",playlist.size());
+        log.info("Uploaded list size: {}", list.size());
         context.memory().generate(linkToStructurePattern(userNode, list));
     }
 
     private Stream<? extends ScElement> uploadList(List<ScElement> list) throws ScMemoryException {
-        return context.memory().generate(listPattern(list));
+        return context.memory().generate(listPattern(list)).filter(Objects::nonNull).filter(scElement -> !scElement.equals(end) && !scElement.equals(start) && !scElement.equals(next));
     }
 
     private ScPattern linkToStructurePattern(ScElement structure, List<? extends ScElement> elements) {
@@ -123,10 +167,6 @@ public class WaffleWavesService {
     }
 
     private ScPattern listPattern(List<ScElement> list) throws ScMemoryException {
-        ScElement next = context.resolveKeynode("nrel_next", NodeType.CONST_NO_ROLE);
-        ScElement start = context.resolveKeynode("rrel_start", NodeType.CONST_ROLE);
-        ScElement end = context.resolveKeynode("rrel_end", NodeType.CONST_ROLE);
-
         ScPattern pattern = new DefaultWebsocketScPattern();
 
         for (int i = 0; i < list.size() - 1; i++) {

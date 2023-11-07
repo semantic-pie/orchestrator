@@ -54,9 +54,12 @@ public class WaffleWavesAgent extends Agent {
             log.info("WaffleWavesEvent");
             context.deleteElement(edge);
             waffleWavesService.loadGenreWeights(target);
-           List<ScElement> playlist =  waffleWavesService.createPlaylist(PLAYLIST_SIZE);
-
-           waffleWavesService.uploadPlaylist(playlist, target);
+//            List<ScElement> playlist =  waffleWavesService.createP2laylist(PLAYLIST_SIZE);
+//
+//           waffleWavesService.uploadPlaylist("flow_playlist", playlist, target);
+            var oldPlaylist = waffleWavesService.getOldPlaylist("flow_playlist", target);
+            log.info("Old playlist: {}", oldPlaylist);
+            log.info("Playlist size: {}", oldPlaylist.size());
         } catch (ScMemoryException e) {
             throw new AgentException(e);
         }
