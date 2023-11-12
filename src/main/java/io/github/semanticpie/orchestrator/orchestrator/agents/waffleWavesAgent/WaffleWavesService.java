@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -34,7 +35,7 @@ public class WaffleWavesService {
 
     private int listEdgeIndex = 0;
     private int structEdgeIndex = 0;
-    public   ScElement next;
+    public ScElement next;
     public ScElement start;
     public ScElement end;
     private final DefaultScContext context;
@@ -47,8 +48,8 @@ public class WaffleWavesService {
         this.context = service.getContext();
         this.userGenresMap = new HashMap<>();
         try {
-            this.next =  context.resolveKeynode("nrel_next", NodeType.CONST_NO_ROLE);
-            this.start =  context.resolveKeynode("concept_start", NodeType.CONST_CLASS);
+            this.next = context.resolveKeynode("nrel_next", NodeType.CONST_NO_ROLE);
+            this.start = context.resolveKeynode("concept_start", NodeType.CONST_CLASS);
             this.end = context.resolveKeynode("concept_end", NodeType.CONST_CLASS);
         } catch (ScMemoryException e) {
             throw new RuntimeException(e);
@@ -78,16 +79,51 @@ public class WaffleWavesService {
         }
     }
 
-    public List<? extends ScElement> getOldPlaylist(String name, ScElement userNode) throws ScMemoryException {
-        ScElement playlistNode = context.findKeynode(name).orElseThrow();
-        return context.find(findPlaylistPattern(userNode,playlistNode)).findFirst().orElseThrow().filter(Objects::nonNull).toList();
+    public List<ScElement> getAndDeleteOldPlaylist(ScElement playlistNode, ScElement userNode) throws ScMemoryException {
+        List<ScElement> tracks = new ArrayList<>();
+        List<ScElement> edges = new ArrayList<>();
+
+        context.find(findPlaylistTrackNodestPattern(userNode, playlistNode)).toList().forEach(stream -> {
+            List<ScElement> elements = stream.filter(Objects::nonNull).collect(Collectors.toList());
+            tracks.addAll(elements.stream().filter(scElement -> scElement instanceof ScNodeImpl).filter(ScElement -> !ScElement.equals(userNode) && !ScElement.equals(playlistNode)).toList());
+            edges.addAll(elements.stream().filter(scElement -> scElement instanceof ScEdgeImpl).toList());
+        });
+
+        ScPattern pattern = new DefaultWebsocketScPattern();
+
+        if(!tracks.isEmpty()) {
+            for (int i = 0; i < tracks.size() - 1; i++) {
+                pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(tracks.get(i)),
+                        new TypePatternElement<>(EdgeType.D_COMMON_VAR, new AliasPatternElement("edge_" + i)),
+                        new FixedPatternElement(tracks.get(i + 1))));
+
+            }
+            edges.addAll(context.find(pattern).toList().get(0).filter(scElement -> scElement.getClass() == ScEdgeImpl.class).toList());
+
+            edges.addAll(getEdgesOfMetaRelation(userNode, tracks, end));
+
+            edges.addAll(getEdgesOfMetaRelation(userNode, tracks, start));
+
+            context.deleteElements(edges.stream());
+        }
+        return tracks;
     }
 
-    private ScPattern findPlaylistPattern(ScElement userNode, ScElement playlistNode){
+    private List<ScElement> getEdgesOfMetaRelation(ScElement userNode, List<ScElement> tracks, ScElement metaRelation) throws ScMemoryException {
+
+        List<ScElement> edges = new ArrayList<>();
+        for (var relations : context.find(scPattern5ForPlaylist(userNode, metaRelation)).toList()) {
+            List<ScElement> temp = relations.collect(Collectors.toList());
+            if (temp.stream().anyMatch(tracks::contains)) {
+                edges.addAll(temp.stream().filter(scElement -> scElement instanceof ScEdgeImpl).toList());
+            }
+        }
+        return edges;
+    }
+
+
+    private ScPattern findPlaylistTrackNodestPattern(ScElement userNode, ScElement playlistNode) {
         ScPattern pattern = new DefaultWebsocketScPattern();
-        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(userNode),
-                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("_edge1")),
-                new FixedPatternElement(playlistNode)));
 
         pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(playlistNode),
                 new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("_edge2")),
@@ -104,7 +140,20 @@ public class WaffleWavesService {
         return pattern;
     }
 
-    public List<ScElement> createPlaylist(int size) {
+    private ScPattern scPattern5ForPlaylist(ScElement userNode, ScElement relation) {
+        ScPattern pattern = new DefaultWebsocketScPattern();
+        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(relation),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_1")),
+                new TypePatternElement<>(NodeType.VAR, new AliasPatternElement("track"))));
+
+        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(userNode),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_2")),
+                new AliasPatternElement("edge_1")));
+
+        return pattern;
+    }
+
+    public List<ScElement> createPlaylist(int size, List<ScElement> oldPlaylist) {
         Random random = new Random();
         int sum = userGenresMap.values().stream().mapToInt(Integer::intValue).sum();
 
@@ -115,7 +164,7 @@ public class WaffleWavesService {
         List<ScElement> playlist = new ArrayList<>(Collections.nCopies(size, null));
         userGenresMap.forEach((key, value) -> {
             try {
-                getTracksByGenre(key, value).forEach((track) -> {
+                getTracksByGenre(key, value, oldPlaylist).forEach((track) -> {
                     while (true) {
                         int index = random.nextInt(size);
                         if (playlist.get(index) == null) {
@@ -136,16 +185,14 @@ public class WaffleWavesService {
         return playlist;
     }
 
-    public void uploadPlaylist(String name, List<ScElement> playlist, ScElement userNode) throws ScMemoryException {
-        ScElement playlistTuple = context.resolveKeynode(name, NodeType.CONST_TUPLE);
-        var tuple = context.memory().generate(linkToStructurePattern(playlistTuple, playlist)).filter(scElement -> !scElement.equals(playlistTuple))
+    public void uploadPlaylist(ScElement playlistNode, List<ScElement> playlist, ScElement userNode) throws ScMemoryException {
+        var tuple = context.memory().generate(linkToStructurePattern(playlistNode, playlist)).filter(scElement -> !scElement.equals(playlistNode))
                 .filter(scElement -> playlist.stream().noneMatch(track -> track.equals(scElement))).toList();
 
         List<ScElement> list = new ArrayList<>(uploadList(playlist).filter(scElement -> playlist.stream().noneMatch(track -> track.equals(scElement))).toList());
         list.addAll(playlist);
         list.addAll(tuple);
-        list.add(playlistTuple);
-        log.info("Playlist size: {}",playlist.size());
+        log.info("Playlist size: {}", playlist.size());
         log.info("Uploaded list size: {}", list.size());
         context.memory().generate(linkToStructurePattern(userNode, list));
     }
@@ -203,14 +250,20 @@ public class WaffleWavesService {
         listEdgeIndex++;
     }
 
-    private List<ScElement> getTracksByGenre(ScElement genreNode, int limit) throws ScMemoryException {
+    private List<ScElement> getTracksByGenre(ScElement genreNode, int limit, List<ScElement> oldPlaylist) throws ScMemoryException {
         ScNode conceptTrack = context.resolveKeynode("concept_track", NodeType.CONST_CLASS);
         List<ScElement> output = new ArrayList<>();
-        var trackList = context.find(trackPattern(genreNode, conceptTrack)).limit(limit).toList();
-
+        var trackList = context.find(trackPattern(genreNode, conceptTrack)).toList();
+        int index = 0;
         for (var track : trackList) {
-            output.add(track.filter(Objects::nonNull).filter(scElement -> !scElement.equals(genreNode) && !scElement.equals(conceptTrack))
-                    .filter(scElement -> scElement.getClass() != ScEdgeImpl.class).findFirst().orElseThrow());
+            if(index > limit) break;
+
+            ScElement element = track.filter(Objects::nonNull).filter(scElement -> !scElement.equals(genreNode) && !scElement.equals(conceptTrack))
+                    .filter(scElement -> scElement.getClass() != ScEdgeImpl.class).findFirst().orElseThrow();
+            if(!oldPlaylist.contains(element)){
+                index++;
+                output.add(element);
+            }
         }
         return output;
     }
