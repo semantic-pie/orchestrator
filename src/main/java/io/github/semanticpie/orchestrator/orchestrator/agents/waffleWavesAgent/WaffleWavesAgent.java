@@ -94,7 +94,7 @@ public class WaffleWavesAgent extends Agent {
             List<ScElement> oldPlaylist = waffleWavesService.getAndDeleteOldPlaylist(playlistNode, userNode);
             List<ScElement> playlist =  waffleWavesService.createPlaylist(limit, oldPlaylist);
             waffleWavesService.uploadPlaylist(playlistNode, playlist, userNode);
-            
+
             context.deleteElements(stream);
         } catch (ScMemoryException e) {
             throw new AgentException(e);
