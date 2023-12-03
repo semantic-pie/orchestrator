@@ -7,6 +7,9 @@ import io.github.semanticpie.orchestrator.orchestrator.exceptions.AgentException
 import io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent.services.impl.TrackServiceException;
 import io.github.semanticpie.orchestrator.orchestrator.agents.trackAgent.services.TrackService;
 import io.github.semanticpie.orchestrator.services.JmanticService;
+import io.minio.GetObjectArgs;
+import io.minio.MinioClient;
+import io.minio.errors.*;
 import lombok.extern.slf4j.Slf4j;
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
@@ -18,14 +21,9 @@ import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
 import org.jaudiotagger.tag.TagException;
 import org.ostis.scmemory.model.element.ScElement;
-import org.ostis.scmemory.model.element.edge.EdgeType;
 import org.ostis.scmemory.model.element.edge.ScEdge;
-import org.ostis.scmemory.model.element.link.LinkType;
-import org.ostis.scmemory.model.element.link.ScLinkString;
-import org.ostis.scmemory.model.element.node.NodeType;
 import org.ostis.scmemory.model.event.OnAddIngoingEdgeEvent;
 import org.ostis.scmemory.model.exception.ScMemoryException;
-import org.ostis.scmemory.model.pattern.pattern5.ScPattern5Impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
@@ -36,22 +34,28 @@ import org.springframework.web.client.RestTemplate;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 
 @Slf4j
 @Component
 public class TrackAgent extends Agent {
 
-    private final RestTemplate restTemplate;
+    private final MinioClient minioClient;
     private final TrackService trackService;
 
     @Value("${application.loaf-loader-url}")
     private String loafLoaderUrl;
 
+    @Value("${minio.bucket}")
+    public String BUCKET_NAME;
+
     @Autowired
-    public TrackAgent(JmanticService jmanticService, RestTemplate restTemplate, TrackService trackService) {
+    public TrackAgent(JmanticService jmanticService, MinioClient minioClient, TrackService trackService) {
         this.jmanticService = jmanticService;
         this.context = jmanticService.getContext();
-        this.restTemplate = restTemplate;
+        this.minioClient = minioClient;
         this.trackService = trackService;
     }
 
@@ -60,8 +64,6 @@ public class TrackAgent extends Agent {
         this.subscribe("format_audio_mpeg", (OnAddIngoingEdgeEvent) this::onEventDo);
         this.subscribe("format_audio_flac", (OnAddIngoingEdgeEvent) this::onEventDo);
     }
-
-
 
     private void onEventDo(ScElement source, ScEdge edge, ScElement target) {
         try {
@@ -98,10 +100,14 @@ public class TrackAgent extends Agent {
 
     private File loadFileFromLoafLoader(String hash) throws IOException {
         File resource = File.createTempFile(hash, ".tmp");
-        restTemplate.execute(loafLoaderUrl + hash, HttpMethod.GET, null, clientHttpResponse -> {
-            StreamUtils.copy(clientHttpResponse.getBody(), new FileOutputStream(resource));
-            return resource;
-        });
+        try (InputStream in = minioClient.getObject(GetObjectArgs.builder().bucket(BUCKET_NAME).object(hash).build())) {
+            java.nio.file.Files.copy(
+                    in,
+                    resource.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
+        } catch (MinioException | InvalidKeyException | NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
         return resource;
     }
 
