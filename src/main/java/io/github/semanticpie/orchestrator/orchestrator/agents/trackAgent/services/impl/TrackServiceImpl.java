@@ -79,9 +79,10 @@ public class TrackServiceImpl implements TrackService {
             });
 
             List<ScElement> edges = context.createEdges(
-                    Stream.generate(() -> EdgeType.ACCESS_CONST_POS_PERM).limit(genreNodes.size()),
-                    genreNodes.stream(),
-                    Stream.generate(() -> uploadedTrack).limit(genreNodes.size())).collect(Collectors.toList());
+                    Stream.generate(() -> EdgeType.D_COMMON_CONST).limit(genreNodes.size()),
+                    Stream.generate(() -> uploadedTrack).limit(genreNodes.size()),
+                    genreNodes.stream()
+                    ).collect(Collectors.toList());
             context.createEdges(
                     Stream.generate(() -> EdgeType.ACCESS_CONST_POS_PERM).limit(edges.size()),
                     Stream.generate(() -> nrelGenre).limit(edges.size()),
