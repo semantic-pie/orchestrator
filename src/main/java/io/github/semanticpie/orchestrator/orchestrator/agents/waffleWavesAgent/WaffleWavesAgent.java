@@ -46,11 +46,11 @@ public class WaffleWavesAgent extends Agent {
     @Override
     public void subscribe() {
         try {
-            context.resolveKeynode("waffle_waves_agent", NodeType.CONST);
+            context.resolveKeynode("action_waffle_waves", NodeType.CONST);
         }catch (ScMemoryException e){
             log.error(e.getLocalizedMessage());
         }
-        this.subscribe("waffle_waves_agent", (OnAddOutgoingEdgeEvent) this::onEventDo);
+        this.subscribe("action_waffle_waves", (OnAddOutgoingEdgeEvent) this::onEventDo);
     }
 
     private void onEventDo(ScElement source, ScEdge edge, ScElement target) {
