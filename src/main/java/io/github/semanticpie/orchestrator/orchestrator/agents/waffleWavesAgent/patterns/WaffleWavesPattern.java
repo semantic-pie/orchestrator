@@ -61,13 +61,13 @@ public class WaffleWavesPattern {
         return pattern;
     }
 
-    public ScPattern trackPattern(ScElement genreNode, ScElement conceptTrack) {
+    public ScPattern trackPattern(ScElement genreNode, ScElement conceptTrack, ScElement nrelGenre) {
         ScPattern pattern = new DefaultWebsocketScPattern();
 
         pattern.addElement(new SearchingPatternTriple(
-                new FixedPatternElement(genreNode),
-                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_1")),
-                new TypePatternElement<>(NodeType.VAR, new AliasPatternElement("track"))
+                new TypePatternElement<>(NodeType.VAR, new AliasPatternElement("track")),
+                new TypePatternElement<>(EdgeType.D_COMMON_VAR, new AliasPatternElement("edge_1")),
+                new FixedPatternElement(genreNode)
         ));
 
         pattern.addElement(new SearchingPatternTriple(
@@ -75,6 +75,10 @@ public class WaffleWavesPattern {
                 new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_2")),
                 new AliasPatternElement("track")
         ));
+
+        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(nrelGenre),
+                new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_3")),
+                new AliasPatternElement("edge_1")));
         return pattern;
     }
 

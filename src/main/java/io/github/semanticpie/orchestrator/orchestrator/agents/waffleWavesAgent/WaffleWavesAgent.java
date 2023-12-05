@@ -92,7 +92,9 @@ public class WaffleWavesAgent extends Agent {
             }
             waffleWavesService.loadGenreWeights(userNode);
             List<ScElement> oldPlaylist = waffleWavesService.getAndDeleteOldPlaylist(playlistNode, userNode);
+            log.warn("Old playlist: {}", oldPlaylist);
             List<ScElement> playlist =  waffleWavesService.createPlaylist(limit, oldPlaylist);
+            log.warn("New playlist: {}", playlist.size());
             waffleWavesService.uploadPlaylist(playlistNode, playlist, userNode);
 
             context.deleteElements(stream);

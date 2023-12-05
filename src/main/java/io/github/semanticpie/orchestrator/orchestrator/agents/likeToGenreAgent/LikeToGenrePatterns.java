@@ -21,11 +21,12 @@ public class LikeToGenrePatterns {
         return pattern;
     }
 
-    public ScPattern patternOfSearchingTrackGenre(ScElement track, ScElement conceptGenreNode){
+    public ScPattern patternOfSearchingTrackGenre(ScElement track, ScElement nrelGenre){
         ScPattern pattern = new DefaultWebsocketScPattern();
-        pattern.addElement(new SearchingPatternTriple(new TypePatternElement<>(NodeType.VAR_CLASS, new AliasPatternElement("genre")), new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_1")), new FixedPatternElement(track)));
 
-        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(conceptGenreNode),new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_2")), new AliasPatternElement("genre")));
+        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(track), new TypePatternElement<>(EdgeType.D_COMMON_VAR, new AliasPatternElement("edge_1")), new TypePatternElement<>(NodeType.VAR_CLASS, new AliasPatternElement("genre"))));
+
+        pattern.addElement(new SearchingPatternTriple(new FixedPatternElement(nrelGenre),new TypePatternElement<>(EdgeType.ACCESS_VAR_POS_PERM, new AliasPatternElement("edge_2")), new AliasPatternElement("edge_1")));
 
         return pattern;
     }

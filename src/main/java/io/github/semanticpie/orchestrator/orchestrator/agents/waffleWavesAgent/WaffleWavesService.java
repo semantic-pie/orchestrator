@@ -141,10 +141,15 @@ public class WaffleWavesService {
                             playlist.set(index, track);
                             break;
                         }
+                        if(!playlist.contains(null)){
+                            break;
+                        }
                     }
                 });
 
+
             } catch (ScMemoryException e) {
+                log.error(e.getLocalizedMessage());
                 throw new RuntimeException(e);
             }
         });
@@ -174,8 +179,10 @@ public class WaffleWavesService {
 
     private List<ScElement> getTracksByGenre(ScElement genreNode, int limit, List<ScElement> oldPlaylist) throws ScMemoryException {
         ScNode conceptTrack = context.resolveKeynode("concept_track", NodeType.CONST_CLASS);
+        ScNode nrelGenre = context.resolveKeynode("nrel_genre", NodeType.CONST_NO_ROLE);
+
         List<ScElement> output = new ArrayList<>();
-        var trackList = context.find(waffleWavesPattern.trackPattern(genreNode, conceptTrack)).toList();
+        var trackList = context.find(waffleWavesPattern.trackPattern(genreNode, conceptTrack, nrelGenre)).toList();
         int index = 0;
         for (var track : trackList) {
             if (index > limit) break;

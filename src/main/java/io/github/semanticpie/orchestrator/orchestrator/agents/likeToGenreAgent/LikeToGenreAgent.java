@@ -37,7 +37,7 @@ public class LikeToGenreAgent extends Agent {
 
     @Override
     public void subscribe() {
-        this.subscribe("nrel_like", (OnAddOutgoingEdgeEvent) this::onEventDo);
+        this.subscribe("nrel_likes", (OnAddOutgoingEdgeEvent) this::onEventDo);
     }
 
     private void onEventDo(ScElement source, ScEdge edge, ScElement target) {
@@ -61,7 +61,7 @@ public class LikeToGenreAgent extends Agent {
 
             if (userNode != null && trackNode != null) {
                 ScElement finalTrackNode = trackNode;
-                ScElement conceptGenre = context.findKeynode("concept_music_genre").orElseThrow();
+                ScElement conceptGenre = context.findKeynode("nrel_genre").orElseThrow();
                 var genre = context.find(patterns.patternOfSearchingTrackGenre(trackNode, conceptGenre))
                         .findFirst().orElseThrow()
                         .filter(scElement -> scElement instanceof ScNodeImpl)
