@@ -2,13 +2,13 @@ package io.github.semanticpie.orchestrator.orchestrator.agents.waffleWavesAgent;
 
 import io.github.semanticpie.orchestrator.orchestrator.agents.waffleWavesAgent.patterns.ListPattern;
 import io.github.semanticpie.orchestrator.orchestrator.agents.waffleWavesAgent.patterns.WaffleWavesPattern;
+import io.github.semanticpie.orchestrator.services.CacheService;
 import io.github.semanticpie.orchestrator.services.JmanticService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.ostis.api.context.DefaultScContext;
 import org.ostis.scmemory.model.element.ScElement;
 import org.ostis.scmemory.model.element.edge.EdgeType;
-import org.ostis.scmemory.model.element.link.LinkType;
 import org.ostis.scmemory.model.element.link.ScLinkString;
 import org.ostis.scmemory.model.element.node.NodeType;
 import org.ostis.scmemory.model.element.node.ScNode;
@@ -18,7 +18,6 @@ import org.ostis.scmemory.websocketmemory.memory.element.ScEdgeImpl;
 import org.ostis.scmemory.websocketmemory.memory.element.ScLinkStringImpl;
 import org.ostis.scmemory.websocketmemory.memory.element.ScNodeImpl;
 import org.ostis.scmemory.websocketmemory.memory.pattern.DefaultWebsocketScPattern;
-import org.ostis.scmemory.websocketmemory.memory.pattern.GeneratingPatternTriple;
 import org.ostis.scmemory.websocketmemory.memory.pattern.SearchingPatternTriple;
 import org.ostis.scmemory.websocketmemory.memory.pattern.element.AliasPatternElement;
 import org.ostis.scmemory.websocketmemory.memory.pattern.element.FixedPatternElement;
@@ -27,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -39,33 +39,32 @@ public class WaffleWavesService {
     private final ScElement end;
     private final DefaultScContext context;
 
+    private final CacheService service;
     private final WaffleWavesPattern waffleWavesPattern;
 
     @Getter
     private final Map<ScElement, Integer> userGenresMap;
 
     @Autowired
-    public WaffleWavesService(JmanticService service, WaffleWavesPattern waffleWavesPattern) {
+    public WaffleWavesService(JmanticService service, CacheService cacheService, WaffleWavesPattern waffleWavesPattern) {
         this.context = service.getContext();
+        this.service = cacheService;
         this.waffleWavesPattern = waffleWavesPattern;
         this.userGenresMap = new HashMap<>();
-        try {
-            this.next = context.resolveKeynode("nrel_next", NodeType.CONST_NO_ROLE);
-            this.start = context.resolveKeynode("concept_start", NodeType.CONST_CLASS);
-            this.end = context.resolveKeynode("concept_end", NodeType.CONST_CLASS);
-        } catch (ScMemoryException e) {
-            throw new RuntimeException(e);
-        }
+        this.next = this.service.get("nrel_next", NodeType.CONST_NO_ROLE);
+        this.start = this.service.get("concept_start", NodeType.CONST_CLASS);
+        this.end = this.service.get("concept_end", NodeType.CONST_CLASS);
     }
 
     public void loadGenreWeights(ScElement userNode) throws ScMemoryException {
 
-        ScNode nrelWeight = context.resolveKeynode("nrel_weight", NodeType.CONST_NO_ROLE);
-        ScNode userGenresTuple = context.resolveKeynode("user_genres", NodeType.CONST_TUPLE);
+        ScNode nrelWeight = service.get("nrel_weight", NodeType.CONST_NO_ROLE);
+        ScNode userGenresTuple = service.get("user_genres", NodeType.CONST_TUPLE);
 
         var genreList = context.find(waffleWavesPattern.userGenresPattern(userNode, userGenresTuple, nrelWeight)).toList();
 
-        log.info("Genres count: " + genreList.size());
+        log.info("Genres count: {}", genreList.size());
+        log.info("Genres list: {}", genreList);
 
         for (var genre : genreList) {
 
@@ -134,18 +133,19 @@ public class WaffleWavesService {
         List<ScElement> playlist = new ArrayList<>(Collections.nCopies(size, null));
         userGenresMap.forEach((key, value) -> {
             try {
+                AtomicInteger iter = new AtomicInteger();
                 getTracksByGenre(key, value, oldPlaylist).forEach((track) -> {
                     while (true) {
                         int index = random.nextInt(size);
                         if (playlist.get(index) == null) {
+                            iter.getAndIncrement();
                             playlist.set(index, track);
-                            break;
-                        }
-                        if(!playlist.contains(null)){
                             break;
                         }
                     }
                 });
+                System.out.println("Generate expected: " + value);
+                System.out.println("Generate facted: " + iter);
 
 
             } catch (ScMemoryException e) {
@@ -178,14 +178,14 @@ public class WaffleWavesService {
 
 
     private List<ScElement> getTracksByGenre(ScElement genreNode, int limit, List<ScElement> oldPlaylist) throws ScMemoryException {
-        ScNode conceptTrack = context.resolveKeynode("concept_track", NodeType.CONST_CLASS);
-        ScNode nrelGenre = context.resolveKeynode("nrel_genre", NodeType.CONST_NO_ROLE);
+        ScNode conceptTrack = this.service.get("concept_track", NodeType.CONST_CLASS);
+        ScNode nrelGenre = this.service.get("nrel_genre", NodeType.CONST_NO_ROLE);
 
         List<ScElement> output = new ArrayList<>();
         var trackList = context.find(waffleWavesPattern.trackPattern(genreNode, conceptTrack, nrelGenre)).toList();
         int index = 0;
         for (var track : trackList) {
-            if (index > limit) break;
+            if (index >= limit) break;
 
             ScElement element = track.filter(Objects::nonNull).filter(scElement -> !scElement.equals(genreNode) && !scElement.equals(conceptTrack))
                     .filter(scElement -> scElement.getClass() != ScEdgeImpl.class).findFirst().orElseThrow();
